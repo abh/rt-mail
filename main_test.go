@@ -6,12 +6,41 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// {
+//   "example-support": "support",
+//   "support-help": "support",
+//   "help": "help",
+//   "help@example.com": "example"
+// }
+
 func TestAddressQueueMap(t *testing.T) {
-	queue, action := addressToQueueAction("ntppool-support@rt.develooper.com")
-	assert.Equal(t, "servers", queue)
+
+	err := loadConfig("mandrill-rt.json.sample")
+	if err != nil {
+		t.Log(err)
+		t.Fail()
+		return
+	}
+
+	var queue, action string
+
+	queue, action = addressToQueueAction("example-support@rt.example")
+	assert.Equal(t, "support", queue)
 	assert.Equal(t, "correspond", action)
 
-	queue, action = addressToQueueAction("vendors-comment@rt.develooper.com")
-	assert.Equal(t, "vendors", queue)
+	queue, action = addressToQueueAction("support-help-comment@rt.example")
+	assert.Equal(t, "support", queue)
+	assert.Equal(t, "comment", action)
+
+	queue, action = addressToQueueAction("help@rt.example")
+	assert.Equal(t, "help", queue)
+	assert.Equal(t, "correspond", action)
+
+	queue, action = addressToQueueAction("help@example.com")
+	assert.Equal(t, "example", queue)
+	assert.Equal(t, "correspond", action)
+
+	queue, action = addressToQueueAction("help-comment@example.com")
+	assert.Equal(t, "example", queue)
 	assert.Equal(t, "comment", action)
 }

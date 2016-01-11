@@ -28,11 +28,16 @@ type MandrillEvent struct {
 	Msg   MandrillMsg `json:"msg"`
 }
 
+// Address to Queue configuration
+type AddressQueue map[string]string
+
 var (
-	config = flag.String("config", "", "pathname of JSON configuration file")
+	config = flag.String("config", "mandrill-rt.json", "pathname of JSON configuration file")
 	listen = flag.String("listen", ":8002", "listen address")
 
 	mux *http.ServeMux
+
+	addressQueueMap AddressQueue
 )
 
 var Version string
@@ -149,15 +154,23 @@ func init() {
 	mux.Handle("/", api.MakeHandler())
 }
 
-func addressToQueueAction(email string) (string, string) {
-	addressQueueMap := map[string]string{
-		"ntppool-support":   "servers",
-		"server-owner-help": "servers",
-		"ntppool-servers":   "servers",
-		"ntppool-vendors":   "vendors",
-		"vendors":           "vendors",
-		"help":              "help",
+func loadConfig(file string) error {
+	b, err := ioutil.ReadFile(file)
+	if err != nil {
+		return err
 	}
+
+	err = json.Unmarshal(b, &addressQueueMap)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func addressToQueueAction(email string) (string, string) {
+
+	email = strings.ToLower(email)
 
 	idx := strings.Index(email, "@")
 	if idx < 1 {
@@ -166,15 +179,23 @@ func addressToQueueAction(email string) (string, string) {
 
 	local := email[0:idx]
 
-	for address, queue := range addressQueueMap {
-		// log.Printf("testing address local='%s' '%s'/'%s'", local, address, queue)
-		if address == local {
-			return queue, "correspond"
-		}
-		if address+"-comment" == local {
-			return queue, "comment"
-		}
+	for _, address := range []string{email, local} {
+		for target, queue := range addressQueueMap {
+			// log.Printf("testing address address='%s' target='%s' queue='%s'",
+			// 	address, target, queue)
 
+			if address == target {
+				return queue, "correspond"
+			}
+			if idx = strings.Index(target, "@"); idx > 0 {
+				target = target[0:idx] + "-comment" + target[idx:]
+			} else {
+				target = target + "-comment"
+			}
+			if address == target {
+				return queue, "comment"
+			}
+		}
 	}
 
 	return "", "correspond"
@@ -182,6 +203,12 @@ func addressToQueueAction(email string) (string, string) {
 
 func main() {
 	flag.Parse()
+
+	err := loadConfig(*config)
+	if err != nil {
+		log.Printf("Could not load configuration file '%s': %s", *config, err)
+	}
+
 	log.Fatal(http.ListenAndServe(*listen, mux))
 }
 
