@@ -4,16 +4,14 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/rcrowley/go-metrics"
-	"github.com/rcrowley/go-tigertonic"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
-	"os/signal"
 	"strings"
-	"syscall"
+
+	"github.com/ant0ine/go-json-rest/rest"
 )
 
 type MandrillMsg struct {
@@ -31,26 +29,26 @@ type MandrillEvent struct {
 }
 
 var (
-	cert   = flag.String("cert", "", "certificate pathname")
-	key    = flag.String("key", "", "private key pathname")
 	config = flag.String("config", "", "pathname of JSON configuration file")
 	listen = flag.String("listen", ":8002", "listen address")
 
-	mux *tigertonic.TrieServeMux
+	mux *http.ServeMux
 )
 
 var Version string
 
-func postHandler(w http.ResponseWriter, r *http.Request) {
+func postHandler(w rest.ResponseWriter, r *rest.Request) {
 
 	fmt.Printf("POST to '%s': %#v\n\n", r.URL.String(), r)
 
-	r.Body = http.MaxBytesReader(w, r.Body, 1024*1024*50)
+	r.Body = http.MaxBytesReader(w.(http.ResponseWriter), r.Body, 1024*1024*50)
 	defer r.Body.Close()
+
+	fmt.Printf("Going to parse form")
 
 	r.ParseMultipartForm(64 << 20)
 
-	fmt.Println("set maxBytesReader")
+	fmt.Println("form has been parsed")
 
 	eventsStr := r.FormValue("mandrill_events")
 
@@ -74,6 +72,8 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Printf("Events: %#v\n\n", events)
+
+	gotErr := false
 
 	for _, event := range events {
 		if event.Event != "inbound" {
@@ -113,9 +113,16 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 			log.Println("RT REsponse: ", string(body))
 		}
 
+		if resp.StatusCode > 299 {
+			gotErr = true
+		}
 	}
 
-	w.WriteHeader(200)
+	if gotErr {
+		w.WriteHeader(503)
+	} else {
+		w.WriteHeader(204)
+	}
 }
 
 func init() {
@@ -126,9 +133,20 @@ func init() {
 	}
 	log.SetFlags(log.Ltime | log.Lmicroseconds | log.Lshortfile)
 
-	mux = tigertonic.NewTrieServeMux()
-	mux.HandleFunc("HEAD", "/mx", headHandler)
-	mux.HandleFunc("POST", "/mx", postHandler)
+	api := rest.NewApi()
+	api.Use(rest.DefaultDevStack...)
+
+	router, err := rest.MakeRouter(
+		rest.Head("/mx", headHandler),
+		rest.Post("/mx", postHandler),
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+	api.SetApp(router)
+
+	mux = http.NewServeMux()
+	mux.Handle("/", api.MakeHandler())
 }
 
 func addressToQueueAction(email string) (string, string) {
@@ -164,48 +182,10 @@ func addressToQueueAction(email string) (string, string) {
 
 func main() {
 	flag.Parse()
-
-	go metrics.Log(
-		metrics.DefaultRegistry,
-		60e9,
-		log.New(os.Stderr, "metrics ", log.Lmicroseconds),
-	)
-
-	server := tigertonic.NewServer(
-		*listen,
-
-		tigertonic.CountedByStatus(
-			tigertonic.Logged(
-				mux,
-				func(s string) string {
-					return s
-				},
-			),
-			"http",
-			nil,
-		),
-	)
-
-	// Example use of server.Close to stop gracefully.
-	go func() {
-		var err error
-		if "" != *cert && "" != *key {
-			err = server.ListenAndServeTLS(*cert, *key)
-		} else {
-			err = server.ListenAndServe()
-		}
-		if nil != err {
-			log.Println(err)
-		}
-	}()
-	ch := make(chan os.Signal)
-	signal.Notify(ch, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
-	log.Println(<-ch)
-	server.Close()
-
+	log.Fatal(http.ListenAndServe(*listen, mux))
 }
 
-func headHandler(w http.ResponseWriter, r *http.Request) {
+func headHandler(w rest.ResponseWriter, r *rest.Request) {
 	fmt.Printf("HEAD for %sv\n", r.URL.String())
 	w.WriteHeader(200)
 }
