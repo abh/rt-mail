@@ -6,13 +6,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// {
-//   "example-support": "support",
-//   "support-help": "support",
-//   "help": "help",
-//   "help@example.com": "example"
-// }
-
 func TestAddressQueueMap(t *testing.T) {
 
 	err := loadConfig("mandrill-rt.json.sample")

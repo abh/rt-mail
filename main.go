@@ -209,6 +209,7 @@ func main() {
 		log.Printf("Could not load configuration file '%s': %s", *config, err)
 	}
 
+	log.Printf("Listening on '%s'", *listen)
 	log.Fatal(http.ListenAndServe(*listen, mux))
 }
 
