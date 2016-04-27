@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 
+	sparkevents "github.com/SparkPost/gosparkpost/events"
 	"github.com/ant0ine/go-json-rest/rest"
 )
 
@@ -31,103 +32,169 @@ type MandrillEvent struct {
 // Address to Queue configuration
 type AddressQueue map[string]string
 
+type Config struct {
+	RTUrl  string       `json:"rt-url"`
+	Queues AddressQueue `json:"queues"`
+}
+
 var (
-	config = flag.String("config", "mandrill-rt.json", "pathname of JSON configuration file")
-	listen = flag.String("listen", ":8002", "listen address")
+	configfile = flag.String("config", "sparkpost-rt.json", "pathname of JSON configuration file")
+	listen     = flag.String("listen", ":8002", "listen address")
 
 	mux *http.ServeMux
 
-	addressQueueMap AddressQueue
+	config Config
 )
 
 var Version string
 
-func postHandler(w rest.ResponseWriter, r *rest.Request) {
+func eventHandler(w rest.ResponseWriter, r *rest.Request) {
 
 	fmt.Printf("POST to '%s': %#v\n\n", r.URL.String(), r)
 
 	r.Body = http.MaxBytesReader(w.(http.ResponseWriter), r.Body, 1024*1024*50)
 	defer r.Body.Close()
-
-	fmt.Printf("Going to parse form")
-
 	r.ParseMultipartForm(64 << 20)
 
-	fmt.Println("form has been parsed")
-
-	eventsStr := r.FormValue("mandrill_events")
-
-	fmt.Println("got FormValue")
-
-	log.Println("Events:", eventsStr)
-	fmt.Println("Event FMT: ", eventsStr)
-
-	events := make([]*MandrillEvent, 0)
-
-	fmt.Println("Going to unmarshall")
-
-	err := json.Unmarshal([]byte(eventsStr), &events)
-
-	fmt.Println("unmarshall done")
-
-	if err != nil {
-		log.Println("Could not unmarshall events", err)
-		w.WriteHeader(500)
+	if r.URL.Path == "/spark/mx" {
+		msg, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			log.Printf("Could not read body: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+		log.Printf("Got body: %s", msg)
+		w.WriteHeader(204)
 		return
 	}
 
-	log.Printf("Events: %#v\n\n", events)
-
-	gotErr := false
-
-	for _, event := range events {
-		if event.Event != "inbound" {
-			log.Printf("Not dealing with '%s' events", event.Event)
-			continue
+	var evts sparkevents.Events
+	dec := json.NewDecoder(r.Body)
+	err := dec.Decode(&evts)
+	if err != nil {
+		if err == sparkevents.ErrWebhookValidation {
+			w.WriteHeader(204)
+			return
 		}
-		log.Printf("Got message to '%s':\n%s\n\n", event.Msg.Email, event.Msg.RawMsg)
-		js, err := json.MarshalIndent(events, "", "    ")
+		log.Printf("Could not parse JSON: %s", err)
+		w.WriteHeader(400)
+		return
+
+	}
+
+	for _, e := range evts {
+		log.Printf("Got an event of type: %s", e.EventType())
+	}
+
+	w.WriteHeader(204)
+}
+
+func relayHandler(w rest.ResponseWriter, r *rest.Request) {
+
+	fmt.Printf("POST to '%s': %#v\n\n", r.URL.String(), r)
+
+	r.Body = http.MaxBytesReader(w.(http.ResponseWriter), r.Body, 1024*1024*50)
+	defer r.Body.Close()
+	r.ParseMultipartForm(64 << 20)
+
+	var msgWrapper []struct {
+		Msys map[string]json.RawMessage `json:"msys"`
+	}
+
+	dec := json.NewDecoder(r.Body)
+	err := dec.Decode(&msgWrapper)
+	if err != nil {
+		log.Printf("Could not parse JSON: %s", err)
+		w.WriteHeader(400)
+		return
+	}
+
+	var msgs []sparkevents.RelayMessage
+
+	for _, wrapper := range msgWrapper {
+		for _, rawMsg := range wrapper.Msys {
+			msg := sparkevents.RelayMessage{}
+			err = json.Unmarshal(rawMsg, &msg)
+			if err != nil {
+				log.Printf("Could not decode raw to msg: %s", err)
+				w.WriteHeader(500)
+				return
+			}
+			msgs = append(msgs, msg)
+		}
+	}
+
+	for _, m := range msgs {
+		log.Printf("Got a message from '%s' to '%s': %s", m.From, m.To, m.String())
+
+		js, err := json.MarshalIndent(m, "", "    ")
 		if err != nil {
-			log.Println("Could not marshall event to json")
+			log.Println("Could not marshall msg to json")
 		} else {
 			log.Printf("Json:\n%s", string(js))
 		}
 
-		queue, action := addressToQueueAction(event.Msg.Email)
+		queue, action := addressToQueueAction(m.To)
 
 		form := url.Values{
 			"queue":  []string{queue},
 			"action": []string{action},
 		}
+		log.Printf("posting to queue '%s' (action: '%s')", queue, action)
 
-		form.Add("message", event.Msg.RawMsg)
+		form.Add("message", m.Content.Email)
 
 		resp, err := http.PostForm(
-			"https://rt.ntppool.org/REST/1.0/NoAuth/mail-gateway",
+			config.RTUrl,
 			form,
 		)
-
 		if err != nil {
 			log.Println("PostForm err:", err)
+			w.WriteHeader(500)
+			return
 		}
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
 			log.Println("Error reading RT response: ", err)
-		} else {
-			resp.Body.Close()
-			log.Println("RT REsponse: ", string(body))
+			w.WriteHeader(500)
+			return
 		}
+		resp.Body.Close()
+		log.Println("RT Response: ", string(body))
 
 		if resp.StatusCode > 299 {
-			gotErr = true
+			w.WriteHeader(503)
+			return
 		}
 	}
 
-	if gotErr {
-		w.WriteHeader(503)
-	} else {
-		w.WriteHeader(204)
+	w.WriteHeader(204)
+
+}
+
+func newAPI() *rest.Api {
+	api := rest.NewApi()
+	api.Use(
+		&rest.AccessLogApacheMiddleware{
+			Format: rest.CombinedLogFormat,
+		},
+		&rest.TimerMiddleware{},
+		&rest.RecorderMiddleware{},
+		&rest.RecoverMiddleware{},
+		&rest.GzipMiddleware{},
+		// &rest.ContentTypeCheckerMiddleware{},
+	)
+
+	router, err := rest.MakeRouter(
+		rest.Head("/spark", headHandler),
+		rest.Post("/spark", eventHandler),
+		rest.Post("/spark/mx", relayHandler),
+	)
+	if err != nil {
+		log.Fatal(err)
 	}
+	api.SetApp(router)
+	return api
 }
 
 func init() {
@@ -138,18 +205,7 @@ func init() {
 	}
 	log.SetFlags(log.Ltime | log.Lmicroseconds | log.Lshortfile)
 
-	api := rest.NewApi()
-	api.Use(rest.DefaultDevStack...)
-
-	router, err := rest.MakeRouter(
-		rest.Head("/mx", headHandler),
-		rest.Post("/mx", postHandler),
-	)
-	if err != nil {
-		log.Fatal(err)
-	}
-	api.SetApp(router)
-
+	api := newAPI()
 	mux = http.NewServeMux()
 	mux.Handle("/", api.MakeHandler())
 }
@@ -160,7 +216,7 @@ func loadConfig(file string) error {
 		return err
 	}
 
-	err = json.Unmarshal(b, &addressQueueMap)
+	err = json.Unmarshal(b, &config)
 	if err != nil {
 		return err
 	}
@@ -180,7 +236,7 @@ func addressToQueueAction(email string) (string, string) {
 	local := email[0:idx]
 
 	for _, address := range []string{email, local} {
-		for target, queue := range addressQueueMap {
+		for target, queue := range config.Queues {
 			// log.Printf("testing address address='%s' target='%s' queue='%s'",
 			// 	address, target, queue)
 
@@ -204,9 +260,9 @@ func addressToQueueAction(email string) (string, string) {
 func main() {
 	flag.Parse()
 
-	err := loadConfig(*config)
+	err := loadConfig(*configfile)
 	if err != nil {
-		log.Printf("Could not load configuration file '%s': %s", *config, err)
+		log.Printf("Could not load configuration file '%s': %s", *configfile, err)
 	}
 
 	log.Printf("Listening on '%s'", *listen)

@@ -1,0 +1,9 @@
+{
+  "rt-url": "https://rt.example.com/REST/1.0/NoAuth/mail-gateway",
+  "queues": {
+    "example-support": "support",
+    "support-help": "support",
+    "help": "help",
+    "help@example.com": "example"
+  }
+}
