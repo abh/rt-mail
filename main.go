@@ -64,7 +64,7 @@ func eventHandler(w rest.ResponseWriter, r *rest.Request) {
 			return
 		}
 		log.Printf("Got body: %s", msg)
-		w.WriteHeader(204)
+		w.WriteHeader(200)
 		return
 	}
 
@@ -84,9 +84,12 @@ func eventHandler(w rest.ResponseWriter, r *rest.Request) {
 
 	for _, e := range evts {
 		log.Printf("Got an event of type: %s", e.EventType())
+		if el, ok := e.(sparkevents.ECLogger); ok {
+			el.ECLog()
+		}
 	}
 
-	w.WriteHeader(204)
+	w.WriteHeader(200)
 }
 
 func relayHandler(w rest.ResponseWriter, r *rest.Request) {
