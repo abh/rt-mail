@@ -72,10 +72,6 @@ func eventHandler(w rest.ResponseWriter, r *rest.Request) {
 	dec := json.NewDecoder(r.Body)
 	err := dec.Decode(&evts)
 	if err != nil {
-		if err == sparkevents.ErrWebhookValidation {
-			w.WriteHeader(204)
-			return
-		}
 		log.Printf("Could not parse JSON: %s", err)
 		w.WriteHeader(400)
 		return
