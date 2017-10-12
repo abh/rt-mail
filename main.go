@@ -6,28 +6,16 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	sparkevents "github.com/SparkPost/gosparkpost/events"
 	"github.com/ant0ine/go-json-rest/rest"
 )
-
-type MandrillMsg struct {
-	RawMsg    string                 `json:"raw_msg"`
-	Headers   map[string]interface{} `json:"headers"`
-	Text      string                 `json:"text"`
-	Email     string                 `json:"email"`
-	FromEmail string                 `json:"from_email"`
-	Subject   string                 `json:"subject"`
-}
-
-type MandrillEvent struct {
-	Event string      `json:"event"`
-	Msg   MandrillMsg `json:"msg"`
-}
 
 // Address to Queue configuration
 type AddressQueue map[string]string
@@ -44,6 +32,8 @@ var (
 	mux *http.ServeMux
 
 	config Config
+
+	hclient *http.Client
 )
 
 var Version string
@@ -134,6 +124,11 @@ func relayHandler(w rest.ResponseWriter, r *rest.Request) {
 		}
 
 		queue, action := addressToQueueAction(m.To)
+		if len(queue) == 0 {
+			log.Printf("Queue not found for %q (returning 404)", m.To)
+			w.WriteHeader(404)
+			return
+		}
 
 		form := url.Values{
 			"queue":  []string{queue},
@@ -143,7 +138,7 @@ func relayHandler(w rest.ResponseWriter, r *rest.Request) {
 
 		form.Add("message", m.Content.Email)
 
-		resp, err := http.PostForm(
+		resp, err := hclient.PostForm(
 			config.RTUrl,
 			form,
 		)
@@ -159,7 +154,13 @@ func relayHandler(w rest.ResponseWriter, r *rest.Request) {
 			return
 		}
 		resp.Body.Close()
-		log.Println("RT Response: ", string(body))
+		log.Printf("RT status code %d, response %q", resp.StatusCode, string(body))
+
+		if strings.Contains(string(body), "failure") {
+			log.Printf("RT failure, return 503")
+			w.WriteHeader(503)
+			return
+		}
 
 		if resp.StatusCode > 299 {
 			w.WriteHeader(503)
@@ -207,6 +208,22 @@ func init() {
 	api := newAPI()
 	mux = http.NewServeMux()
 	mux.Handle("/", api.MakeHandler())
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, req *http.Request) {
+		w.WriteHeader(204)
+		return
+	})
+
+	var netTransport = &http.Transport{
+		Dial: (&net.Dialer{
+			Timeout: 5 * time.Second,
+		}).Dial,
+		TLSHandshakeTimeout: 5 * time.Second,
+	}
+	hclient = &http.Client{
+		Timeout:   time.Second * 10,
+		Transport: netTransport,
+	}
+
 }
 
 func loadConfig(file string) error {
