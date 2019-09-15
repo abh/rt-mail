@@ -1,0 +1,4 @@
+github.com/SparkPost/gosparkpost v0.0.0-20170825125937-4c6d2a3be658 h1:7GbmsZOhmQGtyvvG7HR/9QoR+FKZuvsC/FMV6W5141E=
+github.com/SparkPost/gosparkpost v0.0.0-20170825125937-4c6d2a3be658/go.mod h1:cyhfMSqkHlBoIxTiOMm1iTK9Xsqwohvp4tViuhO1cG8=
+github.com/ant0ine/go-json-rest v3.3.2+incompatible h1:nBixrkLFiDNAW0hauKDLc8yJI6XfrQumWvytE1Hk14E=
+github.com/ant0ine/go-json-rest v3.3.2+incompatible/go.mod h1:q6aCt0GfU6LhpBsnZ/2U+mwe+0XB5WStbmwyoPfc+sk=

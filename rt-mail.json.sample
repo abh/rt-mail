@@ -4,6 +4,7 @@
     "sales": "sales-queue",
     "sales@widgets.example.com": "sales-widgets",
     "help": "help",
+    "enterprise-support": "support",
     "info@form.example.com": "form"
   }
 }

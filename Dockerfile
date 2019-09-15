@@ -1,23 +1,23 @@
-FROM golang:1.9-alpine3.6 AS build
+FROM golang:1.13-alpine3.10 AS build
 
-WORKDIR /go/src/github.com/abh/sparkpost-rt
-ADD . /go/src/github.com/abh/sparkpost-rt
-RUN go-wrapper install
+WORKDIR /go/src/github.com/abh/rt-mail
+ADD . /go/src/github.com/abh/rt-mail
+RUN go install
 
-FROM alpine:3.6
+FROM alpine:3.10
 RUN apk --no-cache add ca-certificates
 
-RUN addgroup sp && adduser -D -G sp sp
+RUN addgroup rt-mail && adduser -D -G rt-mail rt-mail
 
-WORKDIR /sp/
+WORKDIR /rt-mail/
 
-COPY --from=build /go/bin/sparkpost-rt /sp/
+COPY --from=build /go/bin/rt-mail /rt-mail/
 #COPY --from=build /go/src/github.com/abh/sparkpost-rt/sparkpost-rt.json /etc/sparkpost-rt/config.json
 
-USER sp
+USER rt-mail
 
-ENV CONFIG /etc/sparkpost-rt/config.json
+ENV CONFIG /etc/rt-mail/config.json
 
-ADD run.sh /sp/
+ADD run.sh /rt-mail/
 
-CMD ["/sp/run.sh" ]
+CMD ["/rt-mail/run.sh" ]
