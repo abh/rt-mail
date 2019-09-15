@@ -1,0 +1,48 @@
+[
+  {
+    "msys": {
+      "relay_message": {
+        "rcpt_to": "beta-help@grundclock.com",
+        "friendly_from": "ask@perl.org",
+        "customer_id": "17530",
+        "content": {
+          "subject": "test Sun, 24 Apr 2016 03:43:58 -0700",
+          "text": "This is a test mailing\r\n",
+          "headers": [
+            {
+              "Return-Path": "<ask@perl.org>"
+            },
+            {
+              "Received": "from [207.171.7.85] ([207.171.7.85:40238] helo=dns2.develooper.com) by momentum2.platform1.us-west-2.aws.cl.messagesystems.com (envelope-from <ask@perl.org>) (ecelerity 4.2.17.54380 r(Core:4.2.17.4)) with ESMTP id 63/92-05652-E63AC175; Sun, 24 Apr 2016 10:43:58 +0000"
+            },
+            {
+              "Date": "Sun, 24 Apr 2016 03:43:58 -0700"
+            },
+            {
+              "Message-ID": "<63.92.05652.E63AC175@momentum2.platform1.us-west-2.aws.cl.messagesystems.com>"
+            },
+            {
+              "To": "beta-help@grundclock.com"
+            },
+            {
+              "From": "ask@perl.org"
+            },
+            {
+              "Subject": "test Sun, 24 Apr 2016 03:43:58 -0700"
+            },
+            {
+              "X-Mailer": "swaks v20130209.0 jetmore.org/john/code/swaks/"
+            }
+          ],
+          "email_rfc822": "Return-Path: <ask@perl.org>\r\nReceived: from [207.171.7.85] ([207.171.7.85:40238] helo=dns2.develooper.com)\r\n\tby momentum2.platform1.us-west-2.aws.cl.messagesystems.com (envelope-from <ask@perl.org>)\r\n\t(ecelerity 4.2.17.54380 r(Core:4.2.17.4)) with ESMTP\r\n\tid 63/92-05652-E63AC175; Sun, 24 Apr 2016 10:43:58 +0000\r\nDate: Sun, 24 Apr 2016 03:43:58 -0700\r\nMessage-ID: <63.92.05652.E63AC175@momentum2.platform1.us-west-2.aws.cl.messagesystems.com>\r\nTo: help@rt2.ntppool.org\r\nFrom: ask@perl.org\r\nSubject: test Sun, 24 Apr 2016 03:43:58 -0700\r\nX-Mailer: swaks v20130209.0 jetmore.org/john/code/swaks/\r\n\r\nThis is a test mailing\r\n",
+          "email_rfc822_is_base64": false,
+          "to": [
+            "help@rt2.ntppool.org"
+          ]
+        },
+        "msg_from": "ask@perl.org",
+        "webhook_id": "102330718832485561"
+      }
+    }
+  }
+]

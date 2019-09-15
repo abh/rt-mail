@@ -22,8 +22,6 @@ var (
 	listen     = flag.String("listen", ":8002", "listen address")
 )
 
-var Version string
-
 func newAPI() *rest.Api {
 	api := rest.NewApi()
 	api.Use(
@@ -48,7 +46,7 @@ func init() {
 
 }
 
-type Provider interface {
+type provider interface {
 	GetRoutes() []*rest.Route
 }
 
@@ -66,7 +64,7 @@ func main() {
 	sg := &sendgrid.Sendgrid{RT: rt}
 	mg := &mailgun.Mailgun{RT: rt}
 
-	providers := []Provider{
+	providers := []provider{
 		spark, sg, mg,
 	}
 

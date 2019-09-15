@@ -12,19 +12,21 @@ import (
 	"time"
 )
 
+// RT is the client for posting messages to request tracker
 type RT struct {
 	hclient *http.Client
-	config  *Config
+	config  *rtconfig
 }
 
-// Address to Queue configuration
+// AddressQueue contains a Address to Queue mapping
 type AddressQueue map[string]string
 
-type Config struct {
+type rtconfig struct {
 	RTUrl  string       `json:"rt-url"`
 	Queues AddressQueue `json:"queues"`
 }
 
+// New configures a new RT client with the specified configuration file
 func New(configfile string) (*RT, error) {
 
 	cfg, err := loadConfig(configfile)
@@ -46,13 +48,13 @@ func New(configfile string) (*RT, error) {
 	return &RT{hclient: hclient, config: cfg}, nil
 }
 
-func loadConfig(file string) (*Config, error) {
+func loadConfig(file string) (*rtconfig, error) {
 	b, err := ioutil.ReadFile(file)
 	if err != nil {
 		return nil, err
 	}
 
-	cfg := Config{}
+	cfg := rtconfig{}
 
 	err = json.Unmarshal(b, &cfg)
 	if err != nil {
@@ -94,8 +96,9 @@ func (rt *RT) addressToQueueAction(email string) (string, string) {
 	return "", "correspond"
 }
 
+// Error provides a custom error type for the RT client
 type Error struct {
-	NotFound bool
+	NotFound bool // Set if the queue wasn't found
 	msg      string
 }
 
@@ -106,6 +109,7 @@ func (e Error) Error() string {
 	return fmt.Sprintf("%s", e.msg)
 }
 
+// Postmail sends the message to the RT queue matching the specified recipient
 func (rt *RT) Postmail(recipient string, message string) error {
 	queue, action := rt.addressToQueueAction(recipient)
 	if len(queue) == 0 {
@@ -132,7 +136,7 @@ func (rt *RT) Postmail(recipient string, message string) error {
 	}
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Errorf("Error reading RT response: ", err)
+		return fmt.Errorf("Error reading RT response: %s", err)
 	}
 	resp.Body.Close()
 	log.Printf("RT status code %d, response %q", resp.StatusCode, string(body))
