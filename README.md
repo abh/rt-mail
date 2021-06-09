@@ -34,7 +34,9 @@ Configure SparkPost to relay messages to
 
 ### Sendgrid
 
-Not implemented yet.
+Configure Sendgrid to relay messages to (with full email checkbox ticked)
+
+    /sendgrid/mx
 
 ## TODO
 
