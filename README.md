@@ -34,10 +34,12 @@ Configure SparkPost to relay messages to
 
 ### Sendgrid
 
-Not implemented yet.
+Configure Sendgrid to relay messages, you'll need to enable [full MIME emails](https://sendgrid.com/docs/for-developers/parsing-email/setting-up-the-inbound-parse-webhook/)
+
+    /sendgrid/mx
 
 ## TODO
 
 - support more providers
-- Capture bounce events 
+- Capture bounce events
   - https://github.com/SparkPost/event-data/blob/master/sql/tables.ddl
