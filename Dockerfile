@@ -1,10 +1,10 @@
-FROM golang:1.20-alpine3.17 AS build
+FROM golang:1.21.3-alpine3.18 AS build
 
 WORKDIR /go/src/github.com/abh/rt-mail
 ADD . /go/src/github.com/abh/rt-mail
 RUN go install
 
-FROM alpine:3.17
+FROM alpine:3.18
 RUN apk --no-cache add ca-certificates
 
 RUN addgroup rt-mail && adduser -D -G rt-mail rt-mail
