@@ -8,7 +8,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -19,6 +18,7 @@ import (
 	"github.com/ant0ine/go-json-rest/rest"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"go.ntppool.org/common/logger"
 
 	"go.askask.com/rt-mail/rt"
 )
@@ -112,11 +112,12 @@ func (s *SES) GetRoutes() []*rest.Route {
 // Handler processes an SNS POST request containing SES events.
 func (s *SES) Handler(w rest.ResponseWriter, r *rest.Request) {
 	ctx := r.Context()
+	log := logger.FromContext(ctx)
 
 	// Read request body
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		log.Printf("SES: failed to read request body: %s", err)
+		log.ErrorContext(ctx, "SES: failed to read request body", "error", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -125,21 +126,21 @@ func (s *SES) Handler(w rest.ResponseWriter, r *rest.Request) {
 	// Parse SNS envelope
 	var msg SNSMessage
 	if err := json.Unmarshal(body, &msg); err != nil {
-		log.Printf("SES: invalid JSON payload: %s", err)
+		log.ErrorContext(ctx, "SES: invalid JSON payload", "error", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	// Verify SNS signature
 	if err := s.verifySignature(ctx, &msg); err != nil {
-		log.Printf("SES: signature verification failed: %s", err)
+		log.ErrorContext(ctx, "SES: signature verification failed", "error", err)
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
 
 	// Validate TopicArn
 	if msg.TopicArn != s.TopicARN {
-		log.Printf("SES: TopicArn mismatch: got %q, expected %q", msg.TopicArn, s.TopicARN)
+		log.WarnContext(ctx, "SES: TopicArn mismatch", "got", msg.TopicArn, "expected", s.TopicARN)
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
@@ -151,18 +152,19 @@ func (s *SES) Handler(w rest.ResponseWriter, r *rest.Request) {
 	case "Notification":
 		s.handleNotification(ctx, w, &msg)
 	case "UnsubscribeConfirmation":
-		log.Printf("SES: received unsubscribe confirmation for topic %s", msg.TopicArn)
+		log.InfoContext(ctx, "SES: received unsubscribe confirmation", "topic_arn", msg.TopicArn)
 		w.WriteHeader(http.StatusOK)
 	default:
-		log.Printf("SES: unknown message type: %s", msg.Type)
+		log.WarnContext(ctx, "SES: unknown message type", "value", msg.Type)
 		w.WriteHeader(http.StatusBadRequest)
 	}
 }
 
 // handleSubscriptionConfirmation auto-confirms SNS subscription.
 func (s *SES) handleSubscriptionConfirmation(ctx context.Context, w rest.ResponseWriter, msg *SNSMessage) {
+	log := logger.FromContext(ctx)
 	if msg.SubscribeURL == "" {
-		log.Printf("SES: subscription confirmation missing SubscribeURL")
+		log.InfoContext(ctx, "SES: subscription confirmation missing SubscribeURL")
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -170,17 +172,17 @@ func (s *SES) handleSubscriptionConfirmation(ctx context.Context, w rest.Respons
 	// Validate SubscribeURL is from AWS SNS (prevent SSRF)
 	subscribeURL, err := url.Parse(msg.SubscribeURL)
 	if err != nil {
-		log.Printf("SES: invalid SubscribeURL: %s", err)
+		log.ErrorContext(ctx, "SES: invalid SubscribeURL", "error", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 	if subscribeURL.Scheme != "https" {
-		log.Printf("SES: SubscribeURL must use HTTPS: %s", msg.SubscribeURL)
+		log.WarnContext(ctx, "SES: SubscribeURL must use HTTPS", "value", msg.SubscribeURL)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 	if !snsHostPattern.MatchString(subscribeURL.Host) {
-		log.Printf("SES: SubscribeURL host not valid SNS endpoint: %s", subscribeURL.Host)
+		log.WarnContext(ctx, "SES: SubscribeURL host not valid SNS endpoint", "value", subscribeURL.Host)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -188,48 +190,49 @@ func (s *SES) handleSubscriptionConfirmation(ctx context.Context, w rest.Respons
 	// Fetch the SubscribeURL to confirm subscription
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, msg.SubscribeURL, nil)
 	if err != nil {
-		log.Printf("SES: failed to create confirmation request: %s", err)
+		log.ErrorContext(ctx, "SES: failed to create confirmation request", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-		log.Printf("SES: failed to confirm subscription: %s", err)
+		log.ErrorContext(ctx, "SES: failed to confirm subscription", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("SES: subscription confirmation failed with status %d", resp.StatusCode)
+		log.ErrorContext(ctx, "SES: subscription confirmation failed", "status_code", resp.StatusCode)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	log.Printf("SES: subscription confirmed for topic %s", msg.TopicArn)
+	log.InfoContext(ctx, "SES: subscription confirmed", "topic_arn", msg.TopicArn)
 	w.WriteHeader(http.StatusOK)
 }
 
 // handleNotification processes an SES email notification.
 func (s *SES) handleNotification(ctx context.Context, w rest.ResponseWriter, msg *SNSMessage) {
+	log := logger.FromContext(ctx)
 	// Parse the inner SES notification
 	var sesNotif SESNotification
 	if err := json.Unmarshal([]byte(msg.Message), &sesNotif); err != nil {
-		log.Printf("SES: failed to parse SES notification: %s", err)
+		log.ErrorContext(ctx, "SES: failed to parse SES notification", "error", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	// Verify this is a received email notification with S3 action
 	if sesNotif.NotificationType != "Received" {
-		log.Printf("SES: ignoring notification type %q (expected Received)", sesNotif.NotificationType)
+		log.InfoContext(ctx, "SES: ignoring notification type", "type", sesNotif.NotificationType, "expected", "Received")
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
 	if sesNotif.Receipt.Action.Type != "S3" {
-		log.Printf("SES: ignoring action type %q (expected S3)", sesNotif.Receipt.Action.Type)
+		log.InfoContext(ctx, "SES: ignoring action type", "type", sesNotif.Receipt.Action.Type, "expected", "S3")
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
@@ -238,14 +241,14 @@ func (s *SES) handleNotification(ctx context.Context, w rest.ResponseWriter, msg
 	bucket := sesNotif.Receipt.Action.BucketName
 	key := sesNotif.Receipt.Action.ObjectKey
 	if bucket == "" || key == "" {
-		log.Printf("SES: missing S3 bucket or key in notification")
+		log.InfoContext(ctx, "SES: missing S3 bucket or key in notification")
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	rawEmail, err := s.fetchEmailFromS3(ctx, bucket, key)
 	if err != nil {
-		log.Printf("SES: failed to fetch email from S3 (bucket=%s, key=%s): %s", bucket, key, err)
+		log.WarnContext(ctx, "SES: failed to fetch email from S3 (bucket=%s, key=%s)", "value", bucket, key, err)
 		w.WriteHeader(http.StatusServiceUnavailable)
 		return
 	}
@@ -253,7 +256,7 @@ func (s *SES) handleNotification(ctx context.Context, w rest.ResponseWriter, msg
 	// Post to RT for each recipient
 	recipients := sesNotif.Receipt.Recipients
 	if len(recipients) == 0 {
-		log.Printf("SES: no recipients in notification")
+		log.InfoContext(ctx, "SES: no recipients in notification")
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -263,7 +266,7 @@ func (s *SES) handleNotification(ctx context.Context, w rest.ResponseWriter, msg
 	for _, recipient := range recipients {
 		err := s.RT.Postmail(recipient, string(rawEmail))
 		if err != nil {
-			log.Printf("SES: post error for recipient %s: %s", recipient, err)
+			log.ErrorContext(ctx, "SES: failed to post to RT", "recipient", recipient, "error", err)
 			if rtErr, ok := err.(*rt.Error); ok && rtErr.NotFound {
 				notFoundCount++
 				continue

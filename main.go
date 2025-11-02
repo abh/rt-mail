@@ -1,15 +1,15 @@
 package main // go.askask.com/rt-mail
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 
-	// _ "go.askask.com/rt-mail/mailgun"
-
 	"github.com/ant0ine/go-json-rest/rest"
+	"go.ntppool.org/common/logger"
 
 	"go.askask.com/rt-mail/mailgun"
 	requesttracker "go.askask.com/rt-mail/rt"
@@ -53,9 +53,14 @@ type provider interface {
 func main() {
 	flag.Parse()
 
+	// Initialize structured logger
+	log := logger.Setup()
+	ctx := logger.NewContext(context.Background(), log)
+
 	rt, err := requesttracker.New(*configfile)
 	if err != nil {
-		log.Fatalf("setting up RT interface: %s", err)
+		log.ErrorContext(ctx, "failed to setup RT interface", "error", err)
+		os.Exit(1)
 	}
 
 	api := newAPI()
@@ -72,10 +77,11 @@ func main() {
 	if topicARN := os.Getenv("RT_SES_SNS_TOPIC_ARN"); topicARN != "" {
 		sesHandler, err := ses.New(rt, topicARN)
 		if err != nil {
-			log.Fatalf("setting up SES handler: %s", err)
+			log.ErrorContext(ctx, "failed to setup SES handler", "error", err)
+			os.Exit(1)
 		}
 		providers = append(providers, sesHandler)
-		log.Printf("SES handler enabled for topic %s", topicARN)
+		log.InfoContext(ctx, "SES handler enabled", "topic_arn", topicARN)
 	}
 
 	routes := make([]*rest.Route, 0)
@@ -87,7 +93,8 @@ func main() {
 		routes...,
 	)
 	if err != nil {
-		log.Fatal(err)
+		log.ErrorContext(ctx, "failed to create router", "error", err)
+		os.Exit(1)
 	}
 	api.SetApp(router)
 
@@ -98,6 +105,9 @@ func main() {
 		return
 	})
 
-	log.Printf("Listening on '%s'", *listen)
-	log.Fatal(http.ListenAndServe(*listen, mux))
+	log.InfoContext(ctx, "starting server", "listen", *listen)
+	if err := http.ListenAndServe(*listen, mux); err != nil {
+		log.ErrorContext(ctx, "server error", "error", err)
+		os.Exit(1)
+	}
 }
