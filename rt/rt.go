@@ -1,16 +1,18 @@
 package rt
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
 	"time"
+
+	"go.ntppool.org/common/logger"
 )
 
 // RT is the client for posting messages to request tracker
@@ -29,13 +31,12 @@ type rtconfig struct {
 
 // New configures a new RT client with the specified configuration file
 func New(configfile string) (*RT, error) {
-
 	cfg, err := loadConfig(configfile)
 	if err != nil {
 		return nil, fmt.Errorf("loading configuration file '%s': %s", configfile, err)
 	}
 
-	var netTransport = &http.Transport{
+	netTransport := &http.Transport{
 		Dial: (&net.Dialer{
 			Timeout: 5 * time.Second,
 		}).Dial,
@@ -65,7 +66,6 @@ func loadConfig(file string) (*rtconfig, error) {
 }
 
 func (rt *RT) addressToQueueAction(email string) (string, string) {
-
 	email = strings.ToLower(email)
 
 	idx := strings.Index(email, "@")
@@ -112,6 +112,9 @@ func (e Error) Error() string {
 
 // Postmail sends the message to the RT queue matching the specified recipient
 func (rt *RT) Postmail(recipient string, message string) error {
+	ctx := context.Background()
+	log := logger.FromContext(ctx)
+
 	queue, action := rt.addressToQueueAction(recipient)
 	if len(queue) == 0 {
 		return &Error{
@@ -124,7 +127,12 @@ func (rt *RT) Postmail(recipient string, message string) error {
 		"queue":  []string{queue},
 		"action": []string{action},
 	}
-	log.Printf("posting to queue '%s' (action: '%s')", queue, action)
+
+	log.InfoContext(ctx, "posting to RT queue",
+		"queue", queue,
+		"action", action,
+		"recipient", recipient,
+	)
 
 	form.Add("message", message)
 
@@ -140,7 +148,11 @@ func (rt *RT) Postmail(recipient string, message string) error {
 		return fmt.Errorf("Error reading RT response: %s", err)
 	}
 	resp.Body.Close()
-	log.Printf("RT status code %d, response %q", resp.StatusCode, string(body))
+
+	log.DebugContext(ctx, "RT response",
+		"status_code", resp.StatusCode,
+		"body", string(body),
+	)
 
 	if strings.Contains(string(body), "failure") {
 		return fmt.Errorf("RT failure")
