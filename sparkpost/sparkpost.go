@@ -3,7 +3,7 @@ package sparkpost
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 
@@ -34,7 +34,7 @@ func (sp *SparkPost) EventHandler(w rest.ResponseWriter, r *rest.Request) {
 	r.ParseMultipartForm(64 << 20)
 
 	if r.URL.Path == "/spark/mx" {
-		msg, err := ioutil.ReadAll(r.Body)
+		msg, err := io.ReadAll(r.Body)
 		if err != nil {
 			log.Printf("Could not read body: %s", err)
 			w.WriteHeader(500)

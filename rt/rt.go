@@ -3,11 +3,12 @@ package rt
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 )
@@ -49,7 +50,7 @@ func New(configfile string) (*RT, error) {
 }
 
 func loadConfig(file string) (*rtconfig, error) {
-	b, err := ioutil.ReadFile(file)
+	b, err := os.ReadFile(file)
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +135,7 @@ func (rt *RT) Postmail(recipient string, message string) error {
 	if err != nil {
 		return fmt.Errorf("postform err: %s", err)
 	}
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return fmt.Errorf("Error reading RT response: %s", err)
 	}
