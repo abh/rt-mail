@@ -1,15 +1,18 @@
 package rt
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"log"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
+
+	"go.ntppool.org/common/logger"
 )
 
 // RT is the client for posting messages to request tracker
@@ -49,7 +52,7 @@ func New(configfile string) (*RT, error) {
 }
 
 func loadConfig(file string) (*rtconfig, error) {
-	b, err := ioutil.ReadFile(file)
+	b, err := os.ReadFile(file)
 	if err != nil {
 		return nil, err
 	}
@@ -111,6 +114,9 @@ func (e Error) Error() string {
 
 // Postmail sends the message to the RT queue matching the specified recipient
 func (rt *RT) Postmail(recipient string, message string) error {
+	ctx := context.Background()
+	log := logger.FromContext(ctx)
+
 	queue, action := rt.addressToQueueAction(recipient)
 	if len(queue) == 0 {
 		return &Error{
@@ -123,7 +129,12 @@ func (rt *RT) Postmail(recipient string, message string) error {
 		"queue":  []string{queue},
 		"action": []string{action},
 	}
-	log.Printf("posting to queue '%s' (action: '%s')", queue, action)
+
+	log.InfoContext(ctx, "posting to RT queue",
+		"queue", queue,
+		"action", action,
+		"recipient", recipient,
+	)
 
 	form.Add("message", message)
 
@@ -134,12 +145,16 @@ func (rt *RT) Postmail(recipient string, message string) error {
 	if err != nil {
 		return fmt.Errorf("postform err: %s", err)
 	}
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return fmt.Errorf("Error reading RT response: %s", err)
 	}
 	resp.Body.Close()
-	log.Printf("RT status code %d, response %q", resp.StatusCode, string(body))
+
+	log.DebugContext(ctx, "RT response",
+		"status_code", resp.StatusCode,
+		"body", string(body),
+	)
 
 	if strings.Contains(string(body), "failure") {
 		return fmt.Errorf("RT failure")
