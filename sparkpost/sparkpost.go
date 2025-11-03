@@ -1,13 +1,14 @@
 package sparkpost
 
 import (
+	"context"
 	"encoding/json"
-	"fmt"
-	"io/ioutil"
-	"log"
+	"io"
+	"log/slog"
 	"net/http"
 
 	"go.askask.com/rt-mail/rt"
+	"go.ntppool.org/common/logger"
 
 	sparkevents "github.com/SparkPost/gosparkpost/events"
 	"github.com/ant0ine/go-json-rest/rest"
@@ -26,21 +27,23 @@ func (sp *SparkPost) GetRoutes() []*rest.Route {
 }
 
 func (sp *SparkPost) EventHandler(w rest.ResponseWriter, r *rest.Request) {
+	ctx := context.Background()
+	log := logger.FromContext(ctx)
 
-	fmt.Printf("POST to '%s': %#v\n\n", r.URL.String(), r)
+	log.DebugContext(ctx, "received POST request", "path", r.URL.String())
 
 	r.Body = http.MaxBytesReader(w.(http.ResponseWriter), r.Body, 1024*1024*50)
 	defer r.Body.Close()
 	r.ParseMultipartForm(64 << 20)
 
 	if r.URL.Path == "/spark/mx" {
-		msg, err := ioutil.ReadAll(r.Body)
+		msg, err := io.ReadAll(r.Body)
 		if err != nil {
-			log.Printf("Could not read body: %s", err)
+			log.ErrorContext(ctx, "failed to read body", "error", err)
 			w.WriteHeader(500)
 			return
 		}
-		log.Printf("Got body: %s", msg)
+		log.DebugContext(ctx, "received body", "size", len(msg))
 		w.WriteHeader(200)
 		return
 	}
@@ -49,14 +52,14 @@ func (sp *SparkPost) EventHandler(w rest.ResponseWriter, r *rest.Request) {
 	dec := json.NewDecoder(r.Body)
 	err := dec.Decode(&evts)
 	if err != nil {
-		log.Printf("Could not parse JSON: %s", err)
+		log.ErrorContext(ctx, "failed to parse JSON", "error", err)
 		w.WriteHeader(400)
 		return
 
 	}
 
 	for _, e := range evts {
-		log.Printf("Got an event of type: %s", e.EventType())
+		log.InfoContext(ctx, "received event", "type", e.EventType())
 		if el, ok := e.(sparkevents.ECLogger); ok {
 			el.ECLog()
 		}
@@ -66,8 +69,10 @@ func (sp *SparkPost) EventHandler(w rest.ResponseWriter, r *rest.Request) {
 }
 
 func (sp *SparkPost) RelayHandler(w rest.ResponseWriter, r *rest.Request) {
+	ctx := context.Background()
+	log := logger.FromContext(ctx)
 
-	fmt.Printf("POST to '%s': %#v\n\n", r.URL.String(), r)
+	log.DebugContext(ctx, "received POST request", "path", r.URL.String())
 
 	r.Body = http.MaxBytesReader(w.(http.ResponseWriter), r.Body, 1024*1024*50)
 	defer r.Body.Close()
@@ -80,7 +85,7 @@ func (sp *SparkPost) RelayHandler(w rest.ResponseWriter, r *rest.Request) {
 	dec := json.NewDecoder(r.Body)
 	err := dec.Decode(&msgWrapper)
 	if err != nil {
-		log.Printf("Could not parse JSON: %s", err)
+		log.ErrorContext(ctx, "failed to parse JSON", "error", err)
 		w.WriteHeader(400)
 		return
 	}
@@ -92,7 +97,7 @@ func (sp *SparkPost) RelayHandler(w rest.ResponseWriter, r *rest.Request) {
 			msg := sparkevents.RelayMessage{}
 			err = json.Unmarshal(rawMsg, &msg)
 			if err != nil {
-				log.Printf("Could not decode raw to msg: %s", err)
+				log.ErrorContext(ctx, "failed to decode message", "error", err)
 				w.WriteHeader(500)
 				return
 			}
@@ -101,18 +106,17 @@ func (sp *SparkPost) RelayHandler(w rest.ResponseWriter, r *rest.Request) {
 	}
 
 	for _, m := range msgs {
-		log.Printf("Got a message from '%s' to '%s': %s", m.From, m.To, m.String())
-
-		js, err := json.MarshalIndent(m, "", "    ")
-		if err != nil {
-			log.Println("Could not marshall msg to json")
-		} else {
-			log.Printf("Json:\n%s", string(js))
-		}
+		log.InfoContext(ctx, "processing relay message",
+			"from", m.From,
+			"to", m.To,
+			slog.Group("message",
+				"subject", m.Content.Subject,
+			),
+		)
 
 		err = sp.RT.Postmail(m.To, m.Content.Email)
 		if err != nil {
-			log.Printf("post error: %s", err)
+			log.ErrorContext(ctx, "failed to post to RT", "error", err, "recipient", m.To)
 			if err, ok := err.(*rt.Error); ok {
 				if err.NotFound {
 					w.WriteHeader(404)
@@ -128,6 +132,9 @@ func (sp *SparkPost) RelayHandler(w rest.ResponseWriter, r *rest.Request) {
 }
 
 func headHandler(w rest.ResponseWriter, r *rest.Request) {
-	fmt.Printf("HEAD for %sv\n", r.URL.String())
+	ctx := context.Background()
+	log := logger.FromContext(ctx)
+
+	log.DebugContext(ctx, "received HEAD request", "path", r.URL.String())
 	w.WriteHeader(200)
 }
