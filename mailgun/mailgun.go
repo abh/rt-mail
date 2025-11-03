@@ -11,7 +11,7 @@ import (
 )
 
 type Mailgun struct {
-	RT *rt.RT
+	RT rt.Client
 }
 
 func (mg *Mailgun) GetRoutes() []*rest.Route {

@@ -9,7 +9,7 @@ import (
 )
 
 type Sendgrid struct {
-	RT *rt.RT
+	RT rt.Client
 }
 
 func (sg *Sendgrid) GetRoutes() []*rest.Route {

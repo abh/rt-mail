@@ -14,7 +14,7 @@ import (
 )
 
 type SparkPost struct {
-	RT *rt.RT
+	RT rt.Client
 }
 
 func (sp *SparkPost) GetRoutes() []*rest.Route {

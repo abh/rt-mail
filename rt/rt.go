@@ -12,6 +12,11 @@ import (
 	"time"
 )
 
+// Client is an interface for posting messages to request tracker
+type Client interface {
+	Postmail(recipient string, message string) error
+}
+
 // RT is the client for posting messages to request tracker
 type RT struct {
 	hclient *http.Client

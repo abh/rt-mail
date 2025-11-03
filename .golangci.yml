@@ -1,0 +1,77 @@
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+  govet:
+    check-shadowing: true
+  gocyclo:
+    min-complexity: 15
+  dupl:
+    threshold: 100
+  goconst:
+    min-len: 3
+    min-occurrences: 3
+  misspell:
+    locale: US
+  lll:
+    line-length: 120
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style
+    disabled-checks:
+      - whyNoLint
+      - unnamedResult
+
+linters:
+  disable-all: true
+  enable:
+    - errcheck      # Check for unchecked errors
+    - gosimple      # Simplify code
+    - govet         # Vet examines Go source code
+    - ineffassign   # Detect ineffectual assignments
+    - staticcheck   # Static analysis
+    - typecheck     # Type-check Go code
+    - unused        # Find unused code
+    - gofmt         # Check code is formatted
+    - goimports     # Check imports are formatted
+    - misspell      # Spell checker
+    - unconvert     # Remove unnecessary type conversions
+    - dupl          # Code clone detection
+    - goconst       # Find repeated strings that could be constants
+    - gocyclo       # Cyclomatic complexity
+    - gosec         # Security problems
+    - exportloopref # Check for pointers to enclosing loop variables
+
+issues:
+  exclude-rules:
+    # Exclude some linters from running on tests files
+    - path: _test\.go
+      linters:
+        - gocyclo
+        - errcheck
+        - dupl
+        - gosec
+    # Exclude known issues in legacy code
+    - path: main.go
+      linters:
+        - staticcheck
+      text: "SA1019.*go-json-rest" # Ignore deprecation warnings for go-json-rest (planned migration)
+    # Ignore ioutil deprecations for now (separate improvement)
+    - linters:
+        - staticcheck
+      text: "SA1019.*ioutil"
+
+run:
+  timeout: 5m
+  tests: true
+  skip-dirs:
+    - vendor
+
+output:
+  format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
