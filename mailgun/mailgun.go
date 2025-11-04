@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/ant0ine/go-json-rest/rest"
 	"go.ntppool.org/common/logger"
 
 	"go.askask.com/rt-mail/rt"
@@ -14,13 +13,16 @@ type Mailgun struct {
 	RT *rt.RT
 }
 
-func (mg *Mailgun) GetRoutes() []*rest.Route {
-	return []*rest.Route{
-		rest.Post("/mg/mx/mime", mg.ReceiveHandler),
-	}
+func (mg *Mailgun) RegisterRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("/mg/mx/mime", mg.ReceiveHandler)
 }
 
-func (mg *Mailgun) ReceiveHandler(w rest.ResponseWriter, r *rest.Request) {
+func (mg *Mailgun) ReceiveHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
 	ctx := context.Background()
 	log := logger.FromContext(ctx)
 
@@ -29,7 +31,7 @@ func (mg *Mailgun) ReceiveHandler(w rest.ResponseWriter, r *rest.Request) {
 		"content_type", r.Header.Get("Content-Type"),
 	)
 
-	r.Body = http.MaxBytesReader(w.(http.ResponseWriter), r.Body, 1024*1024*50)
+	r.Body = http.MaxBytesReader(w, r.Body, 1024*1024*50)
 	defer r.Body.Close()
 	r.ParseMultipartForm(64 << 20)
 
@@ -52,14 +54,14 @@ func (mg *Mailgun) ReceiveHandler(w rest.ResponseWriter, r *rest.Request) {
 		log.ErrorContext(ctx, "failed to post to RT", "error", err, "recipient", recipient)
 		if err, ok := err.(*rt.Error); ok {
 			if err.NotFound {
-				w.WriteHeader(404)
+				w.WriteHeader(http.StatusNotFound)
 				return
 			}
 		}
-		w.WriteHeader(503)
+		w.WriteHeader(http.StatusServiceUnavailable)
 		return
 	}
 
 	log.InfoContext(ctx, "successfully posted to RT", "recipient", recipient)
-	w.WriteHeader(204)
+	w.WriteHeader(http.StatusNoContent)
 }

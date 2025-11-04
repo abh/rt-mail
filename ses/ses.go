@@ -15,7 +15,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ant0ine/go-json-rest/rest"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"go.ntppool.org/common/logger"
@@ -102,15 +101,18 @@ func New(rtClient *rt.RT, topicARN string) (*SES, error) {
 	}, nil
 }
 
-// GetRoutes returns the REST routes for the SES handler.
-func (s *SES) GetRoutes() []*rest.Route {
-	return []*rest.Route{
-		rest.Post("/ses", s.Handler),
-	}
+// RegisterRoutes registers the SES handler routes.
+func (s *SES) RegisterRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("/ses", s.Handler)
 }
 
 // Handler processes an SNS POST request containing SES events.
-func (s *SES) Handler(w rest.ResponseWriter, r *rest.Request) {
+func (s *SES) Handler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
 	ctx := r.Context()
 	log := logger.FromContext(ctx)
 
@@ -161,7 +163,7 @@ func (s *SES) Handler(w rest.ResponseWriter, r *rest.Request) {
 }
 
 // handleSubscriptionConfirmation auto-confirms SNS subscription.
-func (s *SES) handleSubscriptionConfirmation(ctx context.Context, w rest.ResponseWriter, msg *SNSMessage) {
+func (s *SES) handleSubscriptionConfirmation(ctx context.Context, w http.ResponseWriter, msg *SNSMessage) {
 	log := logger.FromContext(ctx)
 	if msg.SubscribeURL == "" {
 		log.InfoContext(ctx, "SES: subscription confirmation missing SubscribeURL")
@@ -214,7 +216,7 @@ func (s *SES) handleSubscriptionConfirmation(ctx context.Context, w rest.Respons
 }
 
 // handleNotification processes an SES email notification.
-func (s *SES) handleNotification(ctx context.Context, w rest.ResponseWriter, msg *SNSMessage) {
+func (s *SES) handleNotification(ctx context.Context, w http.ResponseWriter, msg *SNSMessage) {
 	log := logger.FromContext(ctx)
 	// Parse the inner SES notification
 	var sesNotif SESNotification

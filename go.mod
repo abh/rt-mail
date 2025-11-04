@@ -6,9 +6,9 @@ toolchain go1.24.7
 
 require (
 	github.com/SparkPost/gosparkpost v0.2.0
-	github.com/ant0ine/go-json-rest v3.3.2+incompatible
 	github.com/aws/aws-sdk-go-v2/config v1.32.2
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.92.1
+	go.ntppool.org/common v0.6.2
 )
 
 require (
@@ -40,7 +40,6 @@ require (
 	github.com/remychantenay/slog-otel v1.3.2 // indirect
 	github.com/samber/lo v1.47.0 // indirect
 	github.com/samber/slog-multi v1.2.4 // indirect
-	go.ntppool.org/common v0.6.2 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/contrib/bridges/otelslog v0.8.0 // indirect
 	go.opentelemetry.io/otel v1.33.0 // indirect
