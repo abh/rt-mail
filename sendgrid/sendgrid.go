@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/ant0ine/go-json-rest/rest"
 	"go.ntppool.org/common/logger"
 
 	"go.askask.com/rt-mail/rt"
@@ -15,10 +14,8 @@ type Sendgrid struct {
 	RT *rt.RT
 }
 
-func (sg *Sendgrid) GetRoutes() []*rest.Route {
-	return []*rest.Route{
-		rest.Post("/sendgrid/mx", sg.ReceiveHandler),
-	}
+func (sg *Sendgrid) RegisterRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("/sendgrid/mx", sg.ReceiveHandler)
 }
 
 type Envelope struct {
@@ -26,13 +23,18 @@ type Envelope struct {
 	To   []string
 }
 
-func (sg *Sendgrid) ReceiveHandler(w rest.ResponseWriter, r *rest.Request) {
+func (sg *Sendgrid) ReceiveHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
 	ctx := context.Background()
 	log := logger.FromContext(ctx)
 
 	log.DebugContext(ctx, "received POST request", "path", r.URL.String())
 
-	r.Body = http.MaxBytesReader(w.(http.ResponseWriter), r.Body, 1024*1024*50)
+	r.Body = http.MaxBytesReader(w, r.Body, 1024*1024*50)
 	defer r.Body.Close()
 	r.ParseMultipartForm(64 << 20)
 
@@ -41,20 +43,20 @@ func (sg *Sendgrid) ReceiveHandler(w rest.ResponseWriter, r *rest.Request) {
 
 	if envelopeData == "" {
 		log.ErrorContext(ctx, "missing envelope field")
-		w.WriteHeader(400)
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	var envelope Envelope
 	if err := json.Unmarshal([]byte(envelopeData), &envelope); err != nil {
 		log.ErrorContext(ctx, "failed to parse envelope", "error", err)
-		w.WriteHeader(400)
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	if len(envelope.To) == 0 {
 		log.ErrorContext(ctx, "envelope contains no recipients")
-		w.WriteHeader(400)
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
@@ -66,7 +68,7 @@ func (sg *Sendgrid) ReceiveHandler(w rest.ResponseWriter, r *rest.Request) {
 	body := form.Get("email")
 	if body == "" {
 		log.ErrorContext(ctx, "email body is empty")
-		w.WriteHeader(400)
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
@@ -83,7 +85,7 @@ func (sg *Sendgrid) ReceiveHandler(w rest.ResponseWriter, r *rest.Request) {
 					log.WarnContext(ctx, "recipient address not configured", "recipient", email)
 					continue
 				}
-				w.WriteHeader(503)
+				w.WriteHeader(http.StatusServiceUnavailable)
 				break
 			}
 			continue
@@ -95,9 +97,9 @@ func (sg *Sendgrid) ReceiveHandler(w rest.ResponseWriter, r *rest.Request) {
 
 	if allNotFound {
 		log.WarnContext(ctx, "all recipients were not found")
-		w.WriteHeader(404)
+		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	w.WriteHeader(204)
+	w.WriteHeader(http.StatusNoContent)
 }

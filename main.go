@@ -8,10 +8,10 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/ant0ine/go-json-rest/rest"
 	"go.ntppool.org/common/logger"
 
 	"go.askask.com/rt-mail/mailgun"
+	"go.askask.com/rt-mail/middleware"
 	requesttracker "go.askask.com/rt-mail/rt"
 	"go.askask.com/rt-mail/sendgrid"
 	"go.askask.com/rt-mail/ses"
@@ -23,21 +23,6 @@ var (
 	listen     = flag.String("listen", ":8002", "listen address")
 )
 
-func newAPI() *rest.Api {
-	api := rest.NewApi()
-	api.Use(
-		&rest.AccessLogApacheMiddleware{
-			Format: rest.CombinedLogFormat,
-		},
-		&rest.TimerMiddleware{},
-		&rest.RecorderMiddleware{},
-		&rest.RecoverMiddleware{},
-		&rest.GzipMiddleware{},
-		// &rest.ContentTypeCheckerMiddleware{},
-	)
-	return api
-}
-
 func init() {
 	flag.Usage = func() {
 		fmt.Fprintln(os.Stderr, "Usage: rt-mail -config=rt-mail.json -listen=:8080")
@@ -47,7 +32,7 @@ func init() {
 }
 
 type provider interface {
-	GetRoutes() []*rest.Route
+	RegisterRoutes(mux *http.ServeMux)
 }
 
 func main() {
@@ -62,8 +47,6 @@ func main() {
 		log.ErrorContext(ctx, "failed to setup RT interface", "error", err)
 		os.Exit(1)
 	}
-
-	api := newAPI()
 
 	spark := &sparkpost.SparkPost{RT: rt}
 	sg := &sendgrid.Sendgrid{RT: rt}
@@ -84,29 +67,27 @@ func main() {
 		log.InfoContext(ctx, "SES handler enabled", "topic_arn", topicARN)
 	}
 
-	routes := make([]*rest.Route, 0)
-	for _, p := range providers {
-		routes = append(routes, p.GetRoutes()...)
-	}
-
-	router, err := rest.MakeRouter(
-		routes...,
-	)
-	if err != nil {
-		log.ErrorContext(ctx, "failed to create router", "error", err)
-		os.Exit(1)
-	}
-	api.SetApp(router)
-
 	mux := http.NewServeMux()
-	mux.Handle("/", api.MakeHandler())
+
+	// Register all provider routes
+	for _, p := range providers {
+		p.RegisterRoutes(mux)
+	}
+
+	// Add healthz endpoint
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, req *http.Request) {
-		w.WriteHeader(204)
-		return
+		w.WriteHeader(http.StatusNoContent)
 	})
 
+	// Apply middleware
+	handler := middleware.Chain(mux,
+		middleware.Recovery,
+		middleware.Logging,
+		middleware.Gzip,
+	)
+
 	log.InfoContext(ctx, "starting server", "listen", *listen)
-	if err := http.ListenAndServe(*listen, mux); err != nil {
+	if err := http.ListenAndServe(*listen, handler); err != nil {
 		log.ErrorContext(ctx, "server error", "error", err)
 		os.Exit(1)
 	}
