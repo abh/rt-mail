@@ -7,11 +7,8 @@ import (
 	"net/http"
 	"os"
 
-	// _ "go.askask.com/rt-mail/mailgun"
-
-	"github.com/ant0ine/go-json-rest/rest"
-
 	"go.askask.com/rt-mail/mailgun"
+	"go.askask.com/rt-mail/middleware"
 	requesttracker "go.askask.com/rt-mail/rt"
 	"go.askask.com/rt-mail/sendgrid"
 	"go.askask.com/rt-mail/sparkpost"
@@ -22,32 +19,16 @@ var (
 	listen     = flag.String("listen", ":8002", "listen address")
 )
 
-func newAPI() *rest.Api {
-	api := rest.NewApi()
-	api.Use(
-		&rest.AccessLogApacheMiddleware{
-			Format: rest.CombinedLogFormat,
-		},
-		&rest.TimerMiddleware{},
-		&rest.RecorderMiddleware{},
-		&rest.RecoverMiddleware{},
-		&rest.GzipMiddleware{},
-		// &rest.ContentTypeCheckerMiddleware{},
-	)
-	return api
-}
-
 func init() {
 	flag.Usage = func() {
 		fmt.Fprintln(os.Stderr, "Usage: rt-mail -config=rt-mail.json -listen=:8080")
 		flag.PrintDefaults()
 	}
 	log.SetFlags(log.Ltime | log.Lmicroseconds | log.Lshortfile)
-
 }
 
 type provider interface {
-	GetRoutes() []*rest.Route
+	RegisterRoutes(mux *http.ServeMux)
 }
 
 func main() {
@@ -58,8 +39,6 @@ func main() {
 		log.Fatalf("setting up RT interface: %s", err)
 	}
 
-	api := newAPI()
-
 	spark := &sparkpost.SparkPost{RT: rt}
 	sg := &sendgrid.Sendgrid{RT: rt}
 	mg := &mailgun.Mailgun{RT: rt}
@@ -68,26 +47,25 @@ func main() {
 		spark, sg, mg,
 	}
 
-	routes := make([]*rest.Route, 0)
-	for _, p := range providers {
-		routes = append(routes, p.GetRoutes()...)
-	}
-
-	router, err := rest.MakeRouter(
-		routes...,
-	)
-	if err != nil {
-		log.Fatal(err)
-	}
-	api.SetApp(router)
-
 	mux := http.NewServeMux()
-	mux.Handle("/", api.MakeHandler())
+
+	// Register all provider routes
+	for _, p := range providers {
+		p.RegisterRoutes(mux)
+	}
+
+	// Add healthz endpoint
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, req *http.Request) {
-		w.WriteHeader(204)
-		return
+		w.WriteHeader(http.StatusNoContent)
 	})
 
+	// Apply middleware
+	handler := middleware.Chain(mux,
+		middleware.Recovery,
+		middleware.Logging,
+		middleware.Gzip,
+	)
+
 	log.Printf("Listening on '%s'", *listen)
-	log.Fatal(http.ListenAndServe(*listen, mux))
+	log.Fatal(http.ListenAndServe(*listen, handler))
 }

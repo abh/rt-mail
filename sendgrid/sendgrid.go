@@ -1,32 +1,35 @@
 package sendgrid
 
 import (
-	"net/http"
-	"fmt"
-	"github.com/ant0ine/go-json-rest/rest"
-	"go.askask.com/rt-mail/rt"
 	"encoding/json"
+	"fmt"
+	"net/http"
+
+	"go.askask.com/rt-mail/rt"
 )
 
 type Sendgrid struct {
 	RT *rt.RT
 }
 
-func (sg *Sendgrid) GetRoutes() []*rest.Route {
-	return []*rest.Route{
-		rest.Post("/sendgrid/mx", sg.ReceiveHandler),
-	}
+func (sg *Sendgrid) RegisterRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("/sendgrid/mx", sg.ReceiveHandler)
 }
 
 type Envelope struct {
-	From    string
+	From string
 	To   []string
 }
 
-func (sg *Sendgrid) ReceiveHandler(w rest.ResponseWriter, r *rest.Request) {
+func (sg *Sendgrid) ReceiveHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
 	fmt.Printf("POST to '%s': %#v\n\n", r.URL.String(), r)
 
-	r.Body = http.MaxBytesReader(w.(http.ResponseWriter), r.Body, 1024*1024*50)
+	r.Body = http.MaxBytesReader(w, r.Body, 1024*1024*50)
 	defer r.Body.Close()
 	r.ParseMultipartForm(64 << 20)
 
@@ -48,7 +51,7 @@ func (sg *Sendgrid) ReceiveHandler(w rest.ResponseWriter, r *rest.Request) {
 	allNotFound := true
 	var err error
 
-	//fmt.Printf("body: %s \n", body)
+	// fmt.Printf("body: %s \n", body)
 
 	for _, email := range result.To {
 		fmt.Printf("to: %s \n", email)
@@ -60,7 +63,7 @@ func (sg *Sendgrid) ReceiveHandler(w rest.ResponseWriter, r *rest.Request) {
 					fmt.Printf("inserting email %s failed, address not setup\n", email)
 					continue
 				}
-				w.WriteHeader(503)
+				w.WriteHeader(http.StatusServiceUnavailable)
 				break
 			}
 			continue
@@ -70,9 +73,9 @@ func (sg *Sendgrid) ReceiveHandler(w rest.ResponseWriter, r *rest.Request) {
 	}
 
 	if allNotFound == true {
-		w.WriteHeader(404)
+		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	w.WriteHeader(204)
+	w.WriteHeader(http.StatusNoContent)
 }
