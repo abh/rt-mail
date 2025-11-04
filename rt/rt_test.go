@@ -3,7 +3,6 @@ package rt
 import "testing"
 
 func TestAddressQueueMap(t *testing.T) {
-
 	cfg, err := loadConfig("rt-mail.test.json")
 	if err != nil {
 		t.Log(err)
@@ -11,11 +10,11 @@ func TestAddressQueueMap(t *testing.T) {
 		return
 	}
 	tests := [][]string{
-		[]string{"example-support@rt.example", "support", "correspond"},
-		[]string{"support-help-comment@rt.example", "support", "comment"},
-		[]string{"help@rt.example", "help", "correspond"},
-		[]string{"help@example.com", "example", "correspond"},
-		[]string{"help-comment@example.com", "example", "comment"},
+		{"example-support@rt.example", "support", "correspond"},
+		{"support-help-comment@rt.example", "support", "comment"},
+		{"help@rt.example", "help", "correspond"},
+		{"help@example.com", "example", "correspond"},
+		{"help-comment@example.com", "example", "comment"},
 	}
 
 	rt := RT{config: cfg}

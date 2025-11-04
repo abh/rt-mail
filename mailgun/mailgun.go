@@ -1,7 +1,6 @@
 package mailgun
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/ant0ine/go-json-rest/rest"
@@ -21,7 +20,7 @@ func (mg *Mailgun) GetRoutes() []*rest.Route {
 }
 
 func (mg *Mailgun) ReceiveHandler(w rest.ResponseWriter, r *rest.Request) {
-	ctx := context.Background()
+	ctx := r.Request.Context()
 	log := logger.FromContext(ctx)
 
 	log.DebugContext(ctx, "received POST request",
@@ -47,7 +46,7 @@ func (mg *Mailgun) ReceiveHandler(w rest.ResponseWriter, r *rest.Request) {
 
 	log.InfoContext(ctx, "processing mailgun webhook", "recipient", recipient)
 
-	err := mg.RT.Postmail(recipient, body)
+	err := mg.RT.Postmail(ctx, recipient, body)
 	if err != nil {
 		log.ErrorContext(ctx, "failed to post to RT", "error", err, "recipient", recipient)
 		if err, ok := err.(*rt.Error); ok {

@@ -31,13 +31,12 @@ type rtconfig struct {
 
 // New configures a new RT client with the specified configuration file
 func New(configfile string) (*RT, error) {
-
 	cfg, err := loadConfig(configfile)
 	if err != nil {
 		return nil, fmt.Errorf("loading configuration file '%s': %s", configfile, err)
 	}
 
-	var netTransport = &http.Transport{
+	netTransport := &http.Transport{
 		Dial: (&net.Dialer{
 			Timeout: 5 * time.Second,
 		}).Dial,
@@ -67,7 +66,6 @@ func loadConfig(file string) (*rtconfig, error) {
 }
 
 func (rt *RT) addressToQueueAction(email string) (string, string) {
-
 	email = strings.ToLower(email)
 
 	idx := strings.Index(email, "@")
@@ -113,8 +111,7 @@ func (e Error) Error() string {
 }
 
 // Postmail sends the message to the RT queue matching the specified recipient
-func (rt *RT) Postmail(recipient string, message string) error {
-	ctx := context.Background()
+func (rt *RT) Postmail(ctx context.Context, recipient string, message string) error {
 	log := logger.FromContext(ctx)
 
 	queue, action := rt.addressToQueueAction(recipient)

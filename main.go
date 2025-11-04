@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 
@@ -22,9 +23,25 @@ var (
 	listen     = flag.String("listen", ":8002", "listen address")
 )
 
-func newAPI() *rest.Api {
+// LoggerMiddleware injects the configured logger into the request context
+type LoggerMiddleware struct {
+	Logger *slog.Logger
+}
+
+// MiddlewareFunc implements the rest.Middleware interface
+func (lm *LoggerMiddleware) MiddlewareFunc(handler rest.HandlerFunc) rest.HandlerFunc {
+	return func(w rest.ResponseWriter, r *rest.Request) {
+		// Inject logger into the request context
+		ctx := logger.NewContext(r.Request.Context(), lm.Logger)
+		r.Request = r.Request.WithContext(ctx)
+		handler(w, r)
+	}
+}
+
+func newAPI(log *slog.Logger) *rest.Api {
 	api := rest.NewApi()
 	api.Use(
+		&LoggerMiddleware{Logger: log},
 		&rest.AccessLogApacheMiddleware{
 			Format: rest.CombinedLogFormat,
 		},
@@ -43,7 +60,6 @@ func init() {
 		flag.PrintDefaults()
 	}
 	log.SetFlags(log.Ltime | log.Lmicroseconds | log.Lshortfile)
-
 }
 
 type provider interface {
@@ -63,7 +79,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	api := newAPI()
+	api := newAPI(log)
 
 	spark := &sparkpost.SparkPost{RT: rt}
 	sg := &sendgrid.Sendgrid{RT: rt}

@@ -6,10 +6,12 @@ import (
 	"testing"
 
 	"github.com/ant0ine/go-json-rest/rest/test"
+	"go.ntppool.org/common/logger"
 )
 
 func TestAPI(t *testing.T) {
-	api := newAPI()
+	log := logger.Setup()
+	api := newAPI(log)
 
 	data := strings.NewReader(`[{"msys": {}}]`)
 	req, err := http.NewRequest("POST", "/spark", data)
