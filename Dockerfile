@@ -1,10 +1,10 @@
-FROM golang:1.21.3-alpine3.18 AS build
+FROM golang:1.25-alpine AS build
 
 WORKDIR /go/src/github.com/abh/rt-mail
 ADD . /go/src/github.com/abh/rt-mail
 RUN go install
 
-FROM alpine:3.18
+FROM alpine:3.22
 RUN apk --no-cache add ca-certificates
 
 RUN addgroup rt-mail && adduser -D -G rt-mail rt-mail
@@ -16,7 +16,7 @@ COPY --from=build /go/src/github.com/abh/rt-mail/rt-mail.json.sample /etc/rt-mai
 
 USER rt-mail
 
-ENV CONFIG /etc/rt-mail/config.json
+ENV CONFIG=/etc/rt-mail/config.json
 
 ADD run.sh /rt-mail/
 
