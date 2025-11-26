@@ -14,6 +14,7 @@ import (
 	"go.askask.com/rt-mail/mailgun"
 	requesttracker "go.askask.com/rt-mail/rt"
 	"go.askask.com/rt-mail/sendgrid"
+	"go.askask.com/rt-mail/ses"
 	"go.askask.com/rt-mail/sparkpost"
 )
 
@@ -43,7 +44,6 @@ func init() {
 		flag.PrintDefaults()
 	}
 	log.SetFlags(log.Ltime | log.Lmicroseconds | log.Lshortfile)
-
 }
 
 type provider interface {
@@ -66,6 +66,16 @@ func main() {
 
 	providers := []provider{
 		spark, sg, mg,
+	}
+
+	// Add SES provider if configured
+	if topicARN := os.Getenv("RT_SES_SNS_TOPIC_ARN"); topicARN != "" {
+		sesHandler, err := ses.New(rt, topicARN)
+		if err != nil {
+			log.Fatalf("setting up SES handler: %s", err)
+		}
+		providers = append(providers, sesHandler)
+		log.Printf("SES handler enabled for topic %s", topicARN)
 	}
 
 	routes := make([]*rest.Route, 0)
