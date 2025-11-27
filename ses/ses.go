@@ -264,7 +264,7 @@ func (s *SES) handleNotification(ctx context.Context, w rest.ResponseWriter, msg
 	var lastErr error
 	var notFoundCount int
 	for _, recipient := range recipients {
-		err := s.RT.Postmail(recipient, string(rawEmail))
+		err := s.RT.Postmail(ctx, recipient, string(rawEmail))
 		if err != nil {
 			log.ErrorContext(ctx, "SES: failed to post to RT", "recipient", recipient, "error", err)
 			if rtErr, ok := err.(*rt.Error); ok && rtErr.NotFound {

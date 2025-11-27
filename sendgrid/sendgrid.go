@@ -1,7 +1,6 @@
 package sendgrid
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 
@@ -27,7 +26,7 @@ type Envelope struct {
 }
 
 func (sg *Sendgrid) ReceiveHandler(w rest.ResponseWriter, r *rest.Request) {
-	ctx := context.Background()
+	ctx := r.Request.Context()
 	log := logger.FromContext(ctx)
 
 	log.DebugContext(ctx, "received POST request", "path", r.URL.String())
@@ -75,7 +74,7 @@ func (sg *Sendgrid) ReceiveHandler(w rest.ResponseWriter, r *rest.Request) {
 	for _, email := range envelope.To {
 		log.InfoContext(ctx, "processing sendgrid webhook", "recipient", email)
 
-		err := sg.RT.Postmail(email, body)
+		err := sg.RT.Postmail(ctx, email, body)
 		if err != nil {
 			log.ErrorContext(ctx, "failed to post to RT", "error", err, "recipient", email)
 			if err, ok := err.(*rt.Error); ok {

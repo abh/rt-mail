@@ -111,8 +111,7 @@ func (e Error) Error() string {
 }
 
 // Postmail sends the message to the RT queue matching the specified recipient
-func (rt *RT) Postmail(recipient string, message string) error {
-	ctx := context.Background()
+func (rt *RT) Postmail(ctx context.Context, recipient string, message string) error {
 	log := logger.FromContext(ctx)
 
 	queue, action := rt.addressToQueueAction(recipient)

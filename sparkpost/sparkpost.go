@@ -1,7 +1,6 @@
 package sparkpost
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -27,7 +26,7 @@ func (sp *SparkPost) GetRoutes() []*rest.Route {
 }
 
 func (sp *SparkPost) EventHandler(w rest.ResponseWriter, r *rest.Request) {
-	ctx := context.Background()
+	ctx := r.Request.Context()
 	log := logger.FromContext(ctx)
 
 	log.DebugContext(ctx, "received POST request", "path", r.URL.String())
@@ -69,7 +68,7 @@ func (sp *SparkPost) EventHandler(w rest.ResponseWriter, r *rest.Request) {
 }
 
 func (sp *SparkPost) RelayHandler(w rest.ResponseWriter, r *rest.Request) {
-	ctx := context.Background()
+	ctx := r.Request.Context()
 	log := logger.FromContext(ctx)
 
 	log.DebugContext(ctx, "received POST request", "path", r.URL.String())
@@ -114,7 +113,7 @@ func (sp *SparkPost) RelayHandler(w rest.ResponseWriter, r *rest.Request) {
 			),
 		)
 
-		err = sp.RT.Postmail(m.To, m.Content.Email)
+		err = sp.RT.Postmail(ctx, m.To, m.Content.Email)
 		if err != nil {
 			log.ErrorContext(ctx, "failed to post to RT", "error", err, "recipient", m.To)
 			if err, ok := err.(*rt.Error); ok {
@@ -131,7 +130,7 @@ func (sp *SparkPost) RelayHandler(w rest.ResponseWriter, r *rest.Request) {
 }
 
 func headHandler(w rest.ResponseWriter, r *rest.Request) {
-	ctx := context.Background()
+	ctx := r.Request.Context()
 	log := logger.FromContext(ctx)
 
 	log.DebugContext(ctx, "received HEAD request", "path", r.URL.String())
