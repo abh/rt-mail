@@ -1,0 +1,22 @@
+# golangci-lint v2 configuration
+version: "2"
+
+linters:
+  enable:
+    - errcheck      # Check for unchecked errors
+    - govet         # Vet examines Go source code
+    - staticcheck   # Static analysis
+    - unused        # Find unused code
+    - gosec         # Security problems
+  settings:
+    errcheck:
+      check-type-assertions: true
+    govet:
+      enable-all: true
+
+formatters:
+  enable:
+    - gofmt         # Check code is formatted
+
+run:
+  timeout: 5m

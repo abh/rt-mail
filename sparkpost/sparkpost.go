@@ -13,16 +13,17 @@ import (
 )
 
 type SparkPost struct {
-	RT *rt.RT
+	RT rt.Client
 }
 
 func (sp *SparkPost) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/spark", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodHead {
+		switch r.Method {
+		case http.MethodHead:
 			headHandler(w, r)
-		} else if r.Method == http.MethodPost {
+		case http.MethodPost:
 			sp.EventHandler(w, r)
-		} else {
+		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
 	})
@@ -42,8 +43,8 @@ func (sp *SparkPost) EventHandler(w http.ResponseWriter, r *http.Request) {
 	log.DebugContext(ctx, "received POST request", "path", r.URL.String())
 
 	r.Body = http.MaxBytesReader(w, r.Body, 1024*1024*50)
-	defer r.Body.Close()
-	r.ParseMultipartForm(64 << 20)
+	defer func() { _ = r.Body.Close() }()
+	_ = r.ParseMultipartForm(64 << 20)
 
 	if r.URL.Path == "/spark/mx" {
 		msg, err := io.ReadAll(r.Body)
@@ -83,8 +84,8 @@ func (sp *SparkPost) RelayHandler(w http.ResponseWriter, r *http.Request) {
 	log.DebugContext(ctx, "received POST request", "path", r.URL.String())
 
 	r.Body = http.MaxBytesReader(w, r.Body, 1024*1024*50)
-	defer r.Body.Close()
-	r.ParseMultipartForm(64 << 20)
+	defer func() { _ = r.Body.Close() }()
+	_ = r.ParseMultipartForm(64 << 20)
 
 	var msgWrapper []struct {
 		Msys map[string]json.RawMessage `json:"msys"`

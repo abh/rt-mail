@@ -38,6 +38,69 @@ Configure Sendgrid to relay messages, you'll need to enable [full MIME emails](h
 
     /sendgrid/mx
 
+## Development
+
+### Quick Start
+
+```bash
+# Install development tools
+make install-tools
+
+# Run tests
+make test
+
+# Run linters
+make lint
+
+# Format code
+make fmt
+
+# Run all checks (fmt, vet, lint, test)
+make check
+
+# Build the binary
+make build
+
+# Run locally (requires rt-mail.json)
+make run
+```
+
+### Makefile Targets
+
+Run `make help` to see all available targets:
+
+- `make build` - Build the rt-mail binary
+- `make test` - Run all tests
+- `make test-coverage` - Run tests with coverage report
+- `make lint` - Run linters
+- `make fmt` - Format code
+- `make check` - Run all checks (recommended before committing)
+- `make install-tools` - Install development tools (golangci-lint)
+- `make clean` - Clean build artifacts
+
+### Running Tests
+
+```bash
+# Run all tests
+make test
+
+# Run tests with coverage
+make test-coverage
+
+# View HTML coverage report
+make test-coverage-html
+
+# Run tests for a specific package
+go test -v ./rt
+```
+
+### Continuous Integration
+
+The project uses GitHub Actions for CI/CD:
+
+- **Test workflow** (`.github/workflows/test.yml`) - Runs tests, linting, and builds on every push/PR
+- **Docker workflow** (`.github/workflows/docker-publish.yml`) - Builds and publishes Docker images
+
 ## TODO
 
 - support more providers

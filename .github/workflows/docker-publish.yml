@@ -1,14 +1,13 @@
 name: Docker
 
 on:
-  #schedule:
-  #  - cron: '32 11 * * *'
+  workflow_run:
+    workflows: ["Test and Lint"]
+    types: [completed]
+    branches: [ "main" ]
   push:
-    branches: [ "main" ]
-    # Publish semver tags as releases.
+    # Publish semver tags as releases (no test dependency for tags)
     tags: [ 'v*.*.*' ]
-  pull_request:
-    branches: [ "main" ]
 
 env:
   # Use docker.io for Docker Hub if empty
@@ -19,7 +18,8 @@ env:
 
 jobs:
   build:
-
+    # Only run if tests passed (or if triggered by tag push)
+    if: ${{ github.event_name == 'push' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read

@@ -78,10 +78,10 @@ type SESNotification struct {
 
 // SES handles AWS SES webhook requests via SNS.
 type SES struct {
-	RT         *rt.RT
-	TopicARN   string
-	S3Client   *s3.Client
+	RT         rt.Client
 	httpClient *http.Client
+	S3Client   *s3.Client
+	TopicARN   string
 }
 
 // New creates a new SES webhook handler.
@@ -117,13 +117,13 @@ func (s *SES) Handler(w http.ResponseWriter, r *http.Request) {
 	log := logger.FromContext(ctx)
 
 	// Read request body
+	defer func() { _ = r.Body.Close() }()
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.ErrorContext(ctx, "SES: failed to read request body", "error", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	defer r.Body.Close()
 
 	// Parse SNS envelope
 	var msg SNSMessage
@@ -203,7 +203,7 @@ func (s *SES) handleSubscriptionConfirmation(ctx context.Context, w http.Respons
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		log.ErrorContext(ctx, "SES: subscription confirmation failed", "status_code", resp.StatusCode)
@@ -301,7 +301,7 @@ func (s *SES) fetchEmailFromS3(ctx context.Context, bucket, key string) ([]byte,
 	if err != nil {
 		return nil, fmt.Errorf("S3 GetObject: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Limit read size to prevent memory exhaustion
 	limitedReader := io.LimitReader(resp.Body, maxEmailSize+1)
@@ -397,7 +397,7 @@ func (s *SES) getCertificate(ctx context.Context, certURL string) (*x509.Certifi
 	if err != nil {
 		return nil, fmt.Errorf("fetch certificate: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	certPEM, err := io.ReadAll(resp.Body)
 	if err != nil {

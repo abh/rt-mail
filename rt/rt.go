@@ -15,6 +15,11 @@ import (
 	"go.ntppool.org/common/logger"
 )
 
+// Client is an interface for posting messages to request tracker
+type Client interface {
+	Postmail(recipient string, message string) error
+}
+
 // RT is the client for posting messages to request tracker
 type RT struct {
 	hclient *http.Client
@@ -25,8 +30,8 @@ type RT struct {
 type AddressQueue map[string]string
 
 type rtconfig struct {
-	RTUrl  string       `json:"rt-url"`
 	Queues AddressQueue `json:"queues"`
+	RTUrl  string       `json:"rt-url"`
 }
 
 // New configures a new RT client with the specified configuration file
@@ -51,7 +56,7 @@ func New(configfile string) (*RT, error) {
 }
 
 func loadConfig(file string) (*rtconfig, error) {
-	b, err := os.ReadFile(file)
+	b, err := os.ReadFile(file) //nolint:gosec
 	if err != nil {
 		return nil, err
 	}
@@ -99,15 +104,15 @@ func (rt *RT) addressToQueueAction(email string) (string, string) {
 
 // Error provides a custom error type for the RT client
 type Error struct {
-	NotFound bool // Set if the queue wasn't found
 	msg      string
+	NotFound bool // Set if the queue wasn't found
 }
 
 func (e Error) Error() string {
 	if e.NotFound {
 		return fmt.Sprintf("%s (notfound=true)", e.msg)
 	}
-	return fmt.Sprintf("%s", e.msg)
+	return e.msg
 }
 
 // Postmail sends the message to the RT queue matching the specified recipient
@@ -147,7 +152,7 @@ func (rt *RT) Postmail(recipient string, message string) error {
 	if err != nil {
 		return fmt.Errorf("Error reading RT response: %s", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	log.DebugContext(ctx, "RT response",
 		"status_code", resp.StatusCode,

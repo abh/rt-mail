@@ -9,7 +9,7 @@ import (
 )
 
 type Mailgun struct {
-	RT *rt.RT
+	RT rt.Client
 }
 
 func (mg *Mailgun) RegisterRoutes(mux *http.ServeMux) {
@@ -31,8 +31,8 @@ func (mg *Mailgun) ReceiveHandler(w http.ResponseWriter, r *http.Request) {
 	)
 
 	r.Body = http.MaxBytesReader(w, r.Body, 1024*1024*50)
-	defer r.Body.Close()
-	r.ParseMultipartForm(64 << 20)
+	defer func() { _ = r.Body.Close() }()
+	_ = r.ParseMultipartForm(64 << 20)
 
 	form := r.PostForm
 

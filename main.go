@@ -86,7 +86,7 @@ func main() {
 	)
 
 	log.InfoContext(ctx, "starting server", "listen", *listen)
-	if err := http.ListenAndServe(*listen, handler); err != nil {
+	if err := http.ListenAndServe(*listen, handler); err != nil { //nolint:gosec
 		log.ErrorContext(ctx, "server error", "error", err)
 		os.Exit(1)
 	}

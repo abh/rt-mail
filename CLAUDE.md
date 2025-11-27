@@ -2,9 +2,9 @@
 
 ## Project Context
 
-RT-Mail bridges managed email providers (Mailgun, SparkPost, SendGrid) with Request Tracker (RT). The service receives incoming emails via webhooks and forwards them to RT's mail gateway API, enabling organizations to use modern email infrastructure with RT-based ticketing.
+RT-Mail bridges managed email providers (Mailgun, SparkPost, SendGrid, Amazon SES) with Request Tracker (RT). The service receives incoming emails via webhooks and forwards them to RT's mail gateway API.
 
-**Stack**: Go 1.21.3, go-json-rest (REST middleware), Docker deployment
+**Stack**: Go 1.25, net/http, Docker deployment
 
 **Flow**: Email provider → webhook POST → handler extracts content → RT client maps to queue → posts to RT REST API
 
@@ -14,78 +14,37 @@ RT-Mail bridges managed email providers (Mailgun, SparkPost, SendGrid) with Requ
 
 The service accepts webhook requests without authentication. Anyone who knows the webhook URLs can inject arbitrary emails into RT queues.
 
-**Locations**: `mailgun/mailgun.go:23`, `sparkpost/sparkpost.go:68,28`, `sendgrid/sendgrid.go:26`
+**Locations**: `mailgun/mailgun.go`, `sparkpost/sparkpost.go`, `sendgrid/sendgrid.go`, `ses/ses.go`
 
 **Required**:
 - Mailgun: Verify HMAC-SHA256 signatures
 - SparkPost: Validate authentication headers
 - SendGrid: Verify event webhook signatures
+- SES: Verify SNS message signatures
 - Add configuration fields for webhook secrets in `rt/rt.go`
 
-**See TODO.md for detailed implementation steps**
-
-## High-Priority Fixes
-
-### Replace Deprecated io/ioutil
-
-**Locations**: `rt/rt.go:6,52,137`, `sparkpost/sparkpost.go:6,37`
-
-The code uses deprecated `io/ioutil` package (deprecated since Go 1.16):
-
-```go
-// Replace
-ioutil.ReadFile()  → os.ReadFile()
-ioutil.ReadAll()   → io.ReadAll()
-```
-
-**Effort**: 15-30 minutes
-
-### Fix Unchecked Error (sendgrid/sendgrid.go:42)
-
-The Sendgrid handler unmarshals envelope JSON without checking errors. If envelope is malformed, `result.To` will be empty and handler silently fails.
-
-Add error checking and validate recipients exist.
-
-**Effort**: 15 minutes
-
-### Remove Debug fmt.Printf
-
-**Locations**: All provider handlers
-
-Replace `fmt.Printf` with structured logging (`log/slog`). Current debug prints expose sensitive data (request headers, email content) in production logs.
-
-Add log levels (DEBUG, INFO, ERROR) configurable via environment.
-
-### Add Retry Logic
-
-RT requests fail immediately without retries. Implement exponential backoff for transient failures (network errors, 5xx responses). Don't retry client errors (4xx).
-
-**See TODO.md for detailed implementation**
-
-## Development Conventions
-
-### Pre-Commit Requirements
+## Pre-Commit Requirements
 
 Before any `git commit`:
 
 1. Run `gofumpt -w` on all modified .go files
 2. Run `go test ./...` - all tests must pass
 3. Remove trailing whitespace from edited lines
-4. After running code generators (sqlc, gRPC, enumer), run `git status` and stage ALL generated files
+4. After running code generators, run `git status` and stage ALL generated files
 
-### Git Usage
+## Git Usage
 
 - Never use `git add -A`, `git add -a`, or `git add .`
 - Add files explicitly by path
 - Clean trailing whitespace before commits
 
-### Testing
+## Testing
 
 - Test actual code, not test code itself
 - Don't duplicate production code into tests
 - Don't test dependencies
 
-### Example Data
+## Example Data
 
 Use appropriate example domains and IPs:
 - Email: `email@example.com` (not `some@email.com`)
@@ -105,6 +64,8 @@ rt-mail/
 │   └── sparkpost.go    # SparkPost webhook handler
 ├── sendgrid/
 │   └── sendgrid.go     # SendGrid webhook handler
+├── ses/
+│   └── ses.go          # Amazon SES webhook handler
 ├── rt-mail.json.sample # Configuration template
 └── Dockerfile          # Multi-stage build
 ```
@@ -129,21 +90,10 @@ Maps email addresses (or local parts) to RT queue names:
 - Case-insensitive matching
 - Falls back to local part if full address not found
 
-## Architecture Strengths
+## Technical Debt
 
-1. Clean separation of concerns (providers in separate packages)
-2. Provider abstraction via common interface
-3. Flexible queue mapping (full addresses and local parts)
-4. Docker containerization with non-root user
-5. HTTP middleware stack (logging, recovery, gzip)
-
-## Technical Debt and Improvements
-
-See TODO.md for prioritized actionable items with effort estimates.
-
-Key items:
+Key items to address:
 - Webhook authentication (critical)
-- Deprecated ioutil usage (high)
-- Structured logging (medium)
-- Test coverage (medium)
-- Framework migration from unmaintained go-json-rest (evaluate)
+- Structured logging improvements
+- Test coverage for SparkPost
+- Retry logic for RT requests

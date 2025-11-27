@@ -10,7 +10,7 @@ import (
 )
 
 type Sendgrid struct {
-	RT *rt.RT
+	RT rt.Client
 }
 
 func (sg *Sendgrid) RegisterRoutes(mux *http.ServeMux) {
@@ -34,8 +34,8 @@ func (sg *Sendgrid) ReceiveHandler(w http.ResponseWriter, r *http.Request) {
 	log.DebugContext(ctx, "received POST request", "path", r.URL.String())
 
 	r.Body = http.MaxBytesReader(w, r.Body, 1024*1024*50)
-	defer r.Body.Close()
-	r.ParseMultipartForm(64 << 20)
+	defer func() { _ = r.Body.Close() }()
+	_ = r.ParseMultipartForm(64 << 20)
 
 	form := r.PostForm
 	envelopeData := form.Get("envelope")
