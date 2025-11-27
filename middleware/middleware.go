@@ -66,6 +66,11 @@ func (rw *responseWriter) Write(b []byte) (int, error) {
 	return n, err
 }
 
+// Unwrap returns the underlying ResponseWriter for http.ResponseController compatibility.
+func (rw *responseWriter) Unwrap() http.ResponseWriter {
+	return rw.ResponseWriter
+}
+
 // Chain applies middleware in order
 func Chain(h http.Handler, middleware ...func(http.Handler) http.Handler) http.Handler {
 	for i := len(middleware) - 1; i >= 0; i-- {
