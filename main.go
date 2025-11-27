@@ -83,7 +83,6 @@ func main() {
 	handler := middleware.Chain(mux,
 		middleware.Recovery,
 		middleware.Logging,
-		middleware.Gzip,
 	)
 
 	log.InfoContext(ctx, "starting server", "listen", *listen)
