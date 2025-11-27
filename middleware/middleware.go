@@ -1,9 +1,11 @@
 package middleware
 
 import (
-	"log"
+	"fmt"
 	"net/http"
 	"time"
+
+	"go.ntppool.org/common/logger"
 )
 
 // Recovery middleware recovers from panics
@@ -11,7 +13,9 @@ func Recovery(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if err := recover(); err != nil {
-				log.Printf("panic recovered: %v", err)
+				ctx := r.Context()
+				log := logger.FromContext(ctx)
+				log.ErrorContext(ctx, "panic recovered", "error", fmt.Sprintf("%v", err))
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			}
 		}()
@@ -19,7 +23,7 @@ func Recovery(next http.Handler) http.Handler {
 	})
 }
 
-// Logging middleware logs requests in Apache Combined Log Format
+// Logging middleware logs requests
 func Logging(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
@@ -28,17 +32,19 @@ func Logging(next http.Handler) http.Handler {
 		next.ServeHTTP(wrapped, r)
 
 		duration := time.Since(start)
-		log.Printf("%s - - [%s] \"%s %s %s\" %d %d \"%s\" \"%s\" %.3fms",
-			r.RemoteAddr,
-			start.Format("02/Jan/2006:15:04:05 -0700"),
-			r.Method,
-			r.URL.Path,
-			r.Proto,
-			wrapped.statusCode,
-			wrapped.bytesWritten,
-			r.Referer(),
-			r.UserAgent(),
-			float64(duration.Nanoseconds())/1e6,
+		ctx := r.Context()
+		log := logger.FromContext(ctx)
+
+		log.InfoContext(ctx, "http request",
+			"remote_addr", r.RemoteAddr,
+			"method", r.Method,
+			"path", r.URL.Path,
+			"proto", r.Proto,
+			"status", wrapped.statusCode,
+			"bytes", wrapped.bytesWritten,
+			"referer", r.Referer(),
+			"user_agent", r.UserAgent(),
+			"duration_ms", float64(duration.Nanoseconds())/1e6,
 		)
 	})
 }

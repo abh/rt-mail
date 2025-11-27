@@ -1,7 +1,6 @@
 package sparkpost
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -37,7 +36,7 @@ func (sp *SparkPost) RegisterRoutes(mux *http.ServeMux) {
 }
 
 func (sp *SparkPost) EventHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := context.Background()
+	ctx := r.Context()
 	log := logger.FromContext(ctx)
 
 	log.DebugContext(ctx, "received POST request", "path", r.URL.String())
@@ -78,7 +77,7 @@ func (sp *SparkPost) EventHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (sp *SparkPost) RelayHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := context.Background()
+	ctx := r.Context()
 	log := logger.FromContext(ctx)
 
 	log.DebugContext(ctx, "received POST request", "path", r.URL.String())
@@ -133,6 +132,7 @@ func (sp *SparkPost) RelayHandler(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			w.WriteHeader(http.StatusServiceUnavailable)
+			return
 		}
 	}
 
@@ -140,7 +140,7 @@ func (sp *SparkPost) RelayHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func headHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := context.Background()
+	ctx := r.Context()
 	log := logger.FromContext(ctx)
 
 	log.DebugContext(ctx, "received HEAD request", "path", r.URL.String())
