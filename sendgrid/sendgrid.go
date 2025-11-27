@@ -1,7 +1,6 @@
 package sendgrid
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 
@@ -29,7 +28,7 @@ func (sg *Sendgrid) ReceiveHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := r.Context()
 	log := logger.FromContext(ctx)
 
 	log.DebugContext(ctx, "received POST request", "path", r.URL.String())
@@ -86,7 +85,7 @@ func (sg *Sendgrid) ReceiveHandler(w http.ResponseWriter, r *http.Request) {
 					continue
 				}
 				w.WriteHeader(http.StatusServiceUnavailable)
-				break
+				return
 			}
 			continue
 		}

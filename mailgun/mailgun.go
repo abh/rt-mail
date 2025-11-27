@@ -1,7 +1,6 @@
 package mailgun
 
 import (
-	"context"
 	"net/http"
 
 	"go.ntppool.org/common/logger"
@@ -23,7 +22,7 @@ func (mg *Mailgun) ReceiveHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := r.Context()
 	log := logger.FromContext(ctx)
 
 	log.DebugContext(ctx, "received POST request",
